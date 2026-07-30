@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Simulatore risparmio fiscale 3° pilastro — Anteprima</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<style>
+:root{
+  --paper:#f7f6f2; --panel:#ffffff; --ink:#191914; --ink-soft:#5c5b52; --line:#d9d6cb;
+  --red:#d5001c; --red-dark:#a3001a; --red-wash:#fdeceb;
+  --green:#2c6e49; --green-wash:#e8f3ec;
+  --blue:#1f4e8c; --blue-wash:#eaf1fb;
+  --font-display:'Inter',system-ui,sans-serif; --font-mono:'IBM Plex Mono',ui-monospace,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:var(--font-display);background:var(--paper);color:var(--ink);padding:28px 16px 60px;-webkit-font-smoothing:antialiased;}
+#app{max-width:980px;margin:0 auto;}
+.hdr{border-top:4px solid var(--ink);padding-top:16px;margin-bottom:24px;}
+.hdr .eyebrow{font-family:var(--font-mono);font-size:.68rem;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-soft);margin-bottom:10px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px;}
+.hdr .eyebrow .flag{color:var(--red);font-weight:600;}
+.hdr h1{font-size:clamp(1.5rem,3.6vw,2.1rem);font-weight:800;letter-spacing:-.01em;line-height:1.1;}
+.hdr h1 em{color:var(--red);font-style:normal;}
+.hdr p{margin-top:8px;font-size:.88rem;color:var(--ink-soft);max-width:62ch;line-height:1.5;}
+.badge-preview{display:inline-flex;align-items:center;gap:6px;background:var(--blue-wash);color:var(--blue);font-family:var(--font-mono);font-size:.66rem;text-transform:uppercase;letter-spacing:.05em;padding:3px 9px;margin-top:10px;font-weight:600;}
+
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--line);border:1px solid var(--line);margin-bottom:22px;}
+.card{background:var(--panel);padding:20px;}
+.card h3{font-size:.78rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding-bottom:10px;border-bottom:2px solid var(--ink);margin-bottom:16px;}
+.fg{margin-bottom:14px;}
+.fg label{display:block;font-size:.72rem;color:var(--ink-soft);font-weight:600;text-transform:uppercase;letter-spacing:.02em;margin-bottom:5px;}
+.fg input,.fg select{width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:3px;font-size:.9rem;font-family:var(--font-mono);background:var(--paper);color:var(--ink);}
+.fg input:focus,.fg select:focus{outline:none;border-color:var(--red);box-shadow:0 0 0 3px var(--red-wash);}
+.fg .hint{font-size:.68rem;color:var(--ink-soft);margin-top:4px;}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+
+.kpi-group{margin-bottom:22px;}
+.kpi-group-title{font-family:var(--font-mono);font-size:.68rem;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-soft);margin-bottom:6px;padding-left:2px;}
+.kpi-strip{background:var(--ink);color:#fff;padding:16px 20px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:22px;}
+.kpi-strip .l{font-size:.68rem;text-transform:uppercase;letter-spacing:.05em;color:#c9c8c0;}
+.kpi-strip .v{font-family:var(--font-mono);font-size:1.5rem;font-weight:700;color:#fff;margin-top:2px;}
+.kpi-strip .s{font-size:.7rem;color:#c9c8c0;max-width:40ch;text-align:right;}
+@media (max-width:600px){ .kpi-strip{flex-direction:column;align-items:flex-start;} .kpi-strip .s{text-align:left;} }
+
+.kpi-line{display:flex;flex-wrap:wrap;background:var(--panel);border:1px solid var(--line);border-top-width:3px;margin-bottom:1px;}
+.kpi-line.k-red{border-top-color:var(--red);}
+.kpi-line.k-blue{border-top-color:var(--blue);}
+.kpi-line .item{flex:1 1 0;min-width:150px;padding:14px 18px;border-right:1px solid var(--line);}
+.kpi-line .item:last-child{border-right:none;}
+.kpi-line .item .l{font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-soft);}
+.kpi-line .item .v{font-family:var(--font-mono);font-size:1.15rem;font-weight:600;margin-top:5px;font-variant-numeric:tabular-nums;}
+.kpi-line.k-red .item .v{color:var(--red);}
+.kpi-line.k-blue .item .v{color:var(--blue);}
+.kpi-line .item .s{font-size:.63rem;margin-top:3px;color:var(--ink-soft);}
+@media (max-width:640px){ .kpi-line .item{border-right:none;border-bottom:1px solid var(--line);flex:1 1 100%;} .kpi-line .item:last-child{border-bottom:none;} }
+
+.chartwrap{background:var(--panel);border:1px solid var(--line);padding:18px;margin-bottom:22px;}
+.chartwrap .t{font-size:.78rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;margin-bottom:12px;}
+.legend{display:flex;gap:18px;margin-top:10px;font-size:.7rem;color:var(--ink-soft);font-family:var(--font-mono);}
+.legend span{display:flex;align-items:center;gap:5px;}
+.dot{width:8px;height:8px;border-radius:50%;}
+
+table{width:100%;border-collapse:collapse;font-size:.8rem;background:var(--panel);}
+th{background:var(--ink);color:#fff;padding:9px 12px;text-align:left;font-size:.68rem;text-transform:uppercase;letter-spacing:.04em;}
+th.r{text-align:right;}
+td{padding:9px 12px;border-bottom:1px solid var(--line);font-family:var(--font-mono);}
+td.r{text-align:right;}
+tr:nth-child(even){background:var(--paper);}
+tr.hi{outline:2px solid var(--red); outline-offset:-2px;}
+tr.hi td{color:var(--red-dark);font-weight:600;}
+.tablewrap{background:var(--panel);border:1px solid var(--line);padding:18px;margin-bottom:22px;overflow-x:auto;}
+.tablewrap .t{font-size:.78rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px;}
+.tablewrap .sub{font-size:.72rem;color:var(--ink-soft);margin-bottom:14px;}
+
+.card.wide{grid-column:1/-1;}
+.risk-tabs{display:flex;gap:0;margin-bottom:16px;border-bottom:2px solid var(--ink);flex-wrap:wrap;}
+.risk-tab{padding:10px 16px;border:none;background:transparent;color:var(--ink-soft);font-size:.78rem;font-weight:700;text-transform:uppercase;letter-spacing:.02em;cursor:pointer;border-bottom:3px solid transparent;margin-bottom:-2px;font-family:var(--font-display);}
+.risk-tab:hover{color:var(--ink);}
+.risk-tab.active{color:var(--red);border-bottom-color:var(--red);}
+.risk-body{display:grid;grid-template-columns:1.3fr 1fr;gap:20px;}
+@media (max-width:760px){ .risk-body{grid-template-columns:1fr;} }
+.risk-desc p{font-size:.84rem;color:var(--ink-soft);line-height:1.55;margin-bottom:12px;}
+.fund-badges{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;}
+.fund-badge{font-family:var(--font-mono);font-size:.66rem;font-weight:600;padding:3px 9px;background:var(--paper);border:1px solid var(--line);color:var(--ink-soft);}
+.risk-meta{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--line);border:1px solid var(--line);}
+.risk-meta .cell{background:var(--panel);padding:10px 12px;}
+.risk-meta .cell .l{font-size:.6rem;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-soft);font-weight:700;}
+.risk-meta .cell .v{font-family:var(--font-mono);font-size:.95rem;font-weight:700;margin-top:3px;}
+.custom-box{background:var(--paper);border:1px solid var(--line);padding:14px;display:none;}
+.custom-box.active{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+
+.note{background:var(--blue-wash);border:1px solid #b9d2ef;border-left:4px solid var(--blue);padding:11px 13px;font-size:.74rem;color:var(--blue);line-height:1.5;margin-top:4px;}
+.cta{background:var(--ink);color:#fff;padding:20px;text-align:center;margin-top:22px;}
+.cta .t1{font-size:1rem;font-weight:700;margin-bottom:6px;}
+.cta .t2{font-size:.8rem;color:#c9c8c0;margin-bottom:14px;}
+.cta button{background:var(--red);color:#fff;border:none;padding:11px 22px;font-size:.82rem;font-weight:700;text-transform:uppercase;letter-spacing:.03em;cursor:pointer;border-radius:2px;}
+.cta button:hover{background:var(--red-dark);}
+
+@media (max-width:760px){ .grid,.kpis,.row2{grid-template-columns:1fr;} }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <header class="hdr">
+    <div class="eyebrow"><span><span class="flag">🇨🇭</span> Previdenza privata · Pilastro 3a</span><span>Prosperity 3a — Liechtenstein Life</span></div>
+    <h1>Quanto risparmi con il <em>3° pilastro</em>?</h1>
+    <p>Stima in 30 secondi il risparmio fiscale annuo e il capitale a scadenza versando nella previdenza vincolata 3a.</p>
+    <span class="badge-preview">● Anteprima — bozza per il sito</span>
+
+    <div style="margin:14px 0;">
+      <img src="images/Foto%20per%20libro.png" alt="Foto per libro" style="max-width:100%;height:auto;border-radius:6px;display:block;">
+    </div>
+  </header>
+
+  <div class="grid">
+    <div class="card">
+      <h3>01 · La tua situazione</h3>
+      <div class="fg">
+        <label>Reddito imponibile annuo (CHF)</label>
+        <input type="number" id="reddito" value="85000" step="1000" oninput="calc()">
+      </div>
+      <div class="fg">
+        <label>Cantone (aliquota marginale indicativa)</label>
+        <select id="cantone" onchange="calc()"></select>
+        <div class="hint">Stima combinata (federale + cantonale + comunale). Il valore esatto dipende dal tuo comune.</div>
+      </div>
+      <div class="row2">
+        <div class="fg">
+          <label>Età attuale</label>
+          <input type="number" id="eta" value="35" min="18" max="65" oninput="calc()">
+        </div>
+        <div class="fg">
+          <label>Età di ritiro prevista</label>
+          <input type="number" id="etaRit" value="65" min="60" max="70" oninput="calc()">
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>02 · Il tuo versamento</h3>
+      <div class="fg">
+        <label>Sei dipendente o indipendente?</label>
+        <select id="tipo" onchange="applyMax(); calc()">
+          <option value="7258">Dipendente (con 2° pilastro) — max CHF 7'258/anno</option>
+          <option value="36288">Indipendente (senza 2° pilastro) — max 20% reddito, max CHF 36'288/anno</option>
+        </select>
+      </div>
+      <div class="fg">
+        <label>Premio annuo versato (CHF)</label>
+        <input type="number" id="premio" value="7258" step="100" oninput="calc()">
+        <div class="hint">Limite legale 2026 indicato automaticamente in base al profilo scelto.</div>
+      </div>
+      <div class="fg">
+        <label>Costi di intermediazione/gestione (%/anno)</label>
+        <input type="number" id="costi" value="2" step="0.1" min="0" oninput="calc()">
+        <div class="hint">Riduce il rendimento netto effettivo. Include commissioni di gestione, del fondo e di intermediazione.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid" style="margin-bottom:22px;">
+    <div class="card wide">
+      <h3>03 · Profilo di rischio dei fondi</h3>
+      <div class="risk-tabs">
+        <button class="risk-tab active" data-p="basso" onclick="setProfile('basso')">🛡️ Basso rischio</button>
+        <button class="risk-tab" data-p="medio" onclick="setProfile('medio')">⚖️ Rischio medio</button>
+        <button class="risk-tab" data-p="alto" onclick="setProfile('alto')">📈 Alto rischio</button>
+        <button class="risk-tab" data-p="custom" onclick="setProfile('custom')">✏️ Su misura</button>
+      </div>
+      <div class="risk-body">
+        <div class="risk-desc">
+          <p id="riskDescText">Orientato alla sicurezza: preferisci fondi obbligazionari e monetari con oscillazioni di valore contenute, accettando rendimenti più bassi in cambio di maggiore stabilità.</p>
+          <div class="fund-badges" id="fundBadges">
+            <span class="fund-badge">Fondi obbligazionari</span>
+            <span class="fund-badge">Fondi monetari</span>
+            <span class="fund-badge">Bassa volatilità</span>
+          </div>
+          <div class="custom-box" id="customBox">
+            <div class="fg" style="margin-bottom:0;">
+              <label>Rendimento atteso (%/anno)</label>
+              <input type="number" id="custRend" value="3.5" step="0.1" oninput="calc()">
+            </div>
+            <div class="fg" style="margin-bottom:0;">
+              <label>Oscillazione attesa (± %/anno)</label>
+              <input type="number" id="custVol" value="4" step="0.5" oninput="calc()">
+            </div>
+          </div>
+        </div>
+        <div class="risk-meta">
+          <div class="cell"><div class="l">Rendimento atteso</div><div class="v" id="rmRend">1.5%</div></div>
+          <div class="cell"><div class="l">Oscillazione (± annua)</div><div class="v" id="rmVol">1.0%</div></div>
+          <div class="cell"><div class="l">Scenario prudente</div><div class="v" id="rmLow">0.5%</div></div>
+          <div class="cell"><div class="l">Scenario favorevole</div><div class="v" id="rmHigh">2.5%</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="kpi-group">
+    <div class="kpi-group-title">Vantaggio fiscale</div>
+    <div class="kpi-line k-red">
+      <div class="item"><div class="l">Aliquota cantone applicata</div><div class="v" id="kAliquota">—</div><div class="s" id="kAliquotaS">cantone selezionato</div></div>
+      <div class="item"><div class="l">Risparmio fiscale annuo</div><div class="v" id="k1">—</div><div class="s">ogni anno di versamento</div></div>
+      <div class="item"><div class="l">Risparmio fiscale cumulato</div><div class="v" id="k2">—</div><div class="s" id="k2s">fino al ritiro</div></div>
+    </div>
+  </div>
+
+  <div class="kpi-group">
+    <div class="kpi-group-title">Andamento dell'investimento</div>
+    <div class="kpi-line k-blue">
+      <div class="item"><div class="l">Capitale versato</div><div class="v" id="kVersato">—</div><div class="s" id="kVersatoS">totale premi, senza rendimento</div></div>
+      <div class="item"><div class="l">Performance netta attesa</div><div class="v" id="kPerf">—</div><div class="s" id="kPerfS">rendimento annuo dei fondi scelti</div></div>
+      <div class="item"><div class="l">Capitale stimato a scadenza</div><div class="v" id="k3">—</div><div class="s" id="k3s">al netto dei costi</div></div>
+    </div>
+  </div>
+
+  <div class="kpi-strip">
+    <div><div class="l">Beneficio totale stimato</div><div class="v" id="k4">—</div></div>
+    <div class="s" id="k4s">Capitale a scadenza se il risparmio fiscale annuo viene reinvestito allo stesso rendimento</div>
+  </div>
+
+  <div class="chartwrap">
+    <div class="t">Crescita del capitale nel tempo</div>
+    <svg id="chart" viewBox="0 0 800 220" style="width:100%;height:200px;"></svg>
+    <div class="legend">
+      <span><span class="dot" style="background:var(--green);"></span> Capitale + risparmio fiscale reinvestito</span>
+      <span><span class="dot" style="background:var(--red);"></span> Capitale nel 3a (scenario centrale, al netto dei costi)</span>
+      <span><span class="dot" style="background:#f3b9bf;"></span> Range prudente/favorevole (profilo di rischio)</span>
+      <span><span class="dot" style="background:var(--ink-soft);"></span> Capitale versato (senza rendimento)</span>
+    </div>
+  </div>
+
+  <div class="tablewrap">
+    <div class="t">Risparmio fiscale per cantone</div>
+    <div class="sub">A parità di reddito e premio versato, confronto tra tutti i 26 cantoni svizzeri. Il cantone selezionato sopra è evidenziato.</div>
+    <table>
+      <thead>
+        <tr>
+          <th>Cantone</th>
+          <th class="r">Aliquota marginale stimata</th>
+          <th class="r">Risparmio fiscale annuo</th>
+          <th class="r">Risparmio fiscale totale (fino al ritiro)</th>
+        </tr>
+      </thead>
+      <tbody id="cantonTableBody"></tbody>
+    </table>
+  </div>
+
+  <div class="note">
+    <strong>Nota:</strong> simulazione indicativa a scopo illustrativo, non è una consulenza fiscale o d'investimento vincolante. I valori reali dipendono dal comune di domicilio, dai fondi scelti e dall'andamento dei mercati. Il capitale investito in fondi non è garantito, salvo scelta dell'opzione di garanzia dei premi. Il "beneficio totale" ipotizza che il risparmio fiscale ottenuto ogni anno venga reinvestito allo stesso rendimento netto dei fondi scelti, componendosi nel tempo insieme al capitale versato: è uno scenario illustrativo, non una previsione garantita.
+  </div>
+
+  <div class="cta">
+    <div class="t1">Vuoi un calcolo preciso sul tuo profilo?</div>
+    <div class="t2">Un consulente verifica la tua situazione fiscale reale e ti propone la soluzione più adatta — nessun impegno.</div>
+    <button onclick="alert('Qui colleghiamo il form di richiesta consulenza / calendario del sito')">Richiedi la tua simulazione personalizzata</button>
+  </div>
+
+</div>
+
+<script>
+function applyMax(){
+  const tipo = document.getElementById('tipo').value;
+  document.getElementById('premio').value = tipo;
+}
+
+function fmt(v){
+  return new Intl.NumberFormat('de-CH',{style:'currency',currency:'CHF',minimumFractionDigits:0,maximumFractionDigits:0}).format(v);
+}
+function fmtPct(v){ return (v*100).toFixed(0)+'%'; }
+
+// Aliquote marginali combinate (federale + cantonale + comunale) — stima indicativa media per cantone
+// Valori orientativi per un reddito imponibile medio-alto; il valore reale dipende dal comune e dalla situazione personale.
+const CANTONI = [
+  {name:'Argovia', rate:0.20},
+  {name:'Appenzello Esterno', rate:0.19},
+  {name:'Appenzello Interno', rate:0.16},
+  {name:'Basilea Campagna', rate:0.22},
+  {name:'Basilea Città', rate:0.24},
+  {name:'Berna', rate:0.21},
+  {name:'Friburgo', rate:0.22},
+  {name:'Ginevra', rate:0.25},
+  {name:'Glarona', rate:0.19},
+  {name:'Grigioni', rate:0.19},
+  {name:'Giura', rate:0.23},
+  {name:'Lucerna', rate:0.19},
+  {name:'Neuchâtel', rate:0.25},
+  {name:'Nidvaldo', rate:0.16},
+  {name:'Obvaldo', rate:0.17},
+  {name:'San Gallo', rate:0.20},
+  {name:'Sciaffusa', rate:0.20},
+  {name:'Soletta', rate:0.21},
+  {name:'Svitto', rate:0.16},
+  {name:'Ticino', rate:0.23},
+  {name:'Turgovia', rate:0.19},
+  {name:'Uri', rate:0.17},
+  {name:'Vallese', rate:0.22},
+  {name:'Vaud', rate:0.24},
+  {name:'Zugo', rate:0.15},
+  {name:'Zurigo', rate:0.22}
+];
+
+function populateCantoni(){
+  const sel = document.getElementById('cantone');
+  sel.innerHTML = CANTONI.map((c,i)=>`<option value="${i}">${c.name}</option>`).join('');
+  const zh = CANTONI.findIndex(c=>c.name==='Zurigo');
+  if(zh>=0) sel.value = zh;
+}
+
+// Profili di rischio ispirati alle classi del questionario di profilazione
+// (Basso rischio - orientato alla sicurezza / Rischio medio - crescita del capitale / Alto rischio - Speculativo)
+const PROFILES = {
+  basso: {
+    rend: 1.5, vol: 1.0,
+    desc: 'Orientato alla sicurezza: preferisci fondi obbligazionari e monetari con oscillazioni di valore contenute, accettando rendimenti più bassi in cambio di maggiore stabilità.',
+    badges: ['Fondi obbligazionari', 'Fondi monetari', 'Bassa volatilità']
+  },
+  medio: {
+    rend: 3.5, vol: 4.0,
+    desc: 'Orientato alla crescita del capitale: cerchi un equilibrio tra rendimento e rischio, con un mix di fondi azionari e obbligazionari. Accetti oscillazioni moderate del valore investito.',
+    badges: ['Fondi misti', 'Azionario/obbligazionario', 'Volatilità moderata']
+  },
+  alto: {
+    rend: 5.5, vol: 8.0,
+    desc: 'Speculativo: privilegi il potenziale di rendimento più elevato, prevalentemente tramite fondi azionari. Accetti forti oscillazioni di valore e un rischio di perdita maggiore.',
+    badges: ['Fondi azionari', 'Elevata volatilità', 'Orizzonte lungo consigliato']
+  },
+  custom: {
+    rend: 3.5, vol: 4.0,
+    desc: 'Imposta tu il rendimento atteso e l\'oscillazione annua, ad esempio sulla base della selezione di fondi definita con il tuo consulente.',
+    badges: ['Fondi selezionati su misura']
+  }
+};
+let currentProfile = 'basso';
+
+function setProfile(p){
+  currentProfile = p;
+  document.querySelectorAll('.risk-tab').forEach(t=>t.classList.toggle('active', t.dataset.p===p));
+  document.getElementById('customBox').classList.toggle('active', p==='custom');
+  document.getElementById('riskDescText').textContent = PROFILES[p].desc;
+  document.getElementById('fundBadges').innerHTML = PROFILES[p].badges.map(b=>`<span class="fund-badge">${b}</span>`).join('');
+  calc();
+}
+
+function calc(){
+  const reddito = parseFloat(document.getElementById('reddito').value)||0;
+  const cantoneIdx = parseInt(document.getElementById('cantone').value)||0;
+  const aliquota = CANTONI[cantoneIdx].rate;
+  const eta = parseInt(document.getElementById('eta').value)||35;
+  const etaRit = parseInt(document.getElementById('etaRit').value)||65;
+  const premio = parseFloat(document.getElementById('premio').value)||0;
+  const costiPct = parseFloat(document.getElementById('costi').value)||0;
+
+  let rendPct, volPct;
+  if(currentProfile==='custom'){
+    rendPct = parseFloat(document.getElementById('custRend').value)||0;
+    volPct = parseFloat(document.getElementById('custVol').value)||0;
+  } else {
+    rendPct = PROFILES[currentProfile].rend;
+    volPct = PROFILES[currentProfile].vol;
+  }
+  // rendimento netto = rendimento lordo dei fondi meno i costi di intermediazione/gestione
+  const rendNettoPct = rendPct - costiPct;
+  const rend = rendNettoPct/100;
+  const rendLow = Math.max(-0.05,(rendNettoPct-volPct)/100);
+  const rendHigh = (rendNettoPct+volPct)/100;
+
+  document.getElementById('rmRend').textContent = rendPct.toFixed(1)+'% lordo';
+  document.getElementById('rmVol').textContent = '± '+volPct.toFixed(1)+'%';
+  document.getElementById('rmLow').textContent = (rendLow*100).toFixed(1)+'% netto';
+  document.getElementById('rmHigh').textContent = (rendHigh*100).toFixed(1)+'% netto';
+
+  const anni = Math.max(1, etaRit - eta);
+  const risparmioAnnuo = premio * aliquota;
+  const risparmioCumulato = risparmioAnnuo * anni;
+
+  // tre scenari di capitale con interesse composto netto, versamento annuo costante
+  // + scenario "beneficio": il risparmio fiscale annuo viene reinvestito allo stesso rendimento netto
+  let cCentr=0, cLow=0, cHigh=0, cSenza=0, cBenef=0;
+  const serieCentr=[], serieLow=[], serieHigh=[], serieSenza=[], serieBenef=[];
+  for(let i=1;i<=anni;i++){
+    cCentr = cCentr*(1+rend) + premio;
+    cLow = cLow*(1+rendLow) + premio;
+    cHigh = cHigh*(1+rendHigh) + premio;
+    cSenza = cSenza + premio;
+    cBenef = cBenef*(1+rend) + premio + risparmioAnnuo;
+    serieCentr.push(cCentr); serieLow.push(cLow); serieHigh.push(cHigh); serieSenza.push(cSenza); serieBenef.push(cBenef);
+  }
+
+  const beneficioTotale = cBenef;
+  const capitaleVersato = premio * anni;
+
+  document.getElementById('kAliquota').textContent = fmtPct(aliquota);
+  document.getElementById('kAliquotaS').textContent = CANTONI[cantoneIdx].name;
+  document.getElementById('k1').textContent = fmt(risparmioAnnuo);
+  document.getElementById('k2').textContent = fmt(risparmioCumulato);
+  document.getElementById('k2s').textContent = 'in ' + anni + ' anni, fino ai ' + etaRit;
+  document.getElementById('kVersato').textContent = fmt(capitaleVersato);
+  document.getElementById('kVersatoS').textContent = premio + '/anno × ' + anni + ' anni';
+  document.getElementById('kPerf').textContent = (rendNettoPct>=0?'+':'') + rendNettoPct.toFixed(1) + '%';
+  document.getElementById('kPerfS').textContent = 'lordo ' + rendPct.toFixed(1) + '% − costi ' + costiPct.toFixed(1) + '%';
+  document.getElementById('k3').textContent = fmt(Math.round(cCentr));
+  document.getElementById('k3s').textContent = 'range ' + fmt(Math.round(cLow)) + ' – ' + fmt(Math.round(cHigh));
+  document.getElementById('k4').textContent = fmt(Math.round(beneficioTotale));
+  document.getElementById('k4s').textContent = 'reinvestendo ' + fmt(risparmioAnnuo) + '/anno di risparmio fiscale allo stesso rendimento netto (' + rendNettoPct.toFixed(1) + '%)';
+
+  drawChart(serieCentr, serieLow, serieHigh, serieSenza, serieBenef, eta, rendNettoPct);
+  buildCantonTable(premio, anni, cantoneIdx);
+}
+
+function buildCantonTable(premio, anni, selectedIdx){
+  const body = document.getElementById('cantonTableBody');
+  const rows = CANTONI.map((c,i)=>{
+    const annuo = premio * c.rate;
+    const totale = annuo * anni;
+    return `<tr class="${i===selectedIdx?'hi':''}">
+      <td>${c.name}${i===selectedIdx?' ●':''}</td>
+      <td class="r">${fmtPct(c.rate)}</td>
+      <td class="r">${fmt(Math.round(annuo))}</td>
+      <td class="r">${fmt(Math.round(totale))}</td>
+    </tr>`;
+  }).join('');
+  body.innerHTML = rows;
+}
+
+function drawChart(serieCentr, serieLow, serieHigh, serieSenza, serieBenef, etaStart, rendNettoPct){
+  const svg = document.getElementById('chart');
+  const w=800,h=220,pad={t:10,r:130,b:26,l:64};
+  const n = serieCentr.length;
+  const max = Math.max(...serieHigh, ...serieBenef, 1);
+  const cw = w-pad.l-pad.r, ch = h-pad.t-pad.b;
+  const x = i => pad.l + (i/(n-1||1))*cw;
+  const y = v => pad.t + ch - (v/max)*ch;
+
+  let grid='', ylab='';
+  for(let g=0; g<=4; g++){
+    const val = max*g/4;
+    const yp = y(val);
+    grid += `<line x1="${pad.l}" y1="${yp}" x2="${w-pad.r}" y2="${yp}" stroke="#d9d6cb" stroke-width="1" stroke-dasharray="2,3"/>`;
+    ylab += `<text x="${pad.l-8}" y="${yp+3}" text-anchor="end" font-size="9" fill="#5c5b52" font-family="monospace">${Math.round(val/1000)}k</text>`;
+  }
+
+  // banda di incertezza (area tra scenario prudente e favorevole)
+  let bandD = `M ${x(0)} ${y(serieLow[0])}`;
+  serieLow.forEach((v,i)=>{ bandD += ` L ${x(i)} ${y(v)}`; });
+  for(let i=n-1;i>=0;i--){ bandD += ` L ${x(i)} ${y(serieHigh[i])}`; }
+  bandD += ' Z';
+
+  let lineCentr='', lineSenza='', lineBenef='';
+  serieCentr.forEach((v,i)=>{ lineCentr += (i===0?'M':'L')+` ${x(i)} ${y(v)}`; });
+  serieSenza.forEach((v,i)=>{ lineSenza += (i===0?'M':'L')+` ${x(i)} ${y(v)}`; });
+  serieBenef.forEach((v,i)=>{ lineBenef += (i===0?'M':'L')+` ${x(i)} ${y(v)}`; });
+
+  let xlab='';
+  const step = Math.max(1, Math.floor(n/8));
+  serieCentr.forEach((v,i)=>{
+    if(i%step===0 || i===n-1) xlab += `<text x="${x(i)}" y="${h-8}" text-anchor="middle" font-size="9" fill="#5c5b52" font-family="monospace">${etaStart+i+1}</text>`;
+  });
+
+  // annotazioni finali a destra: beneficio reinvestito, capitale a scadenza, capitale versato
+  const lastX = x(n-1);
+  const yBenef = y(serieBenef[n-1]);
+  const yFinal = y(serieCentr[n-1]);
+  const ySenza = y(serieSenza[n-1]);
+  const annot = `
+    <circle cx="${lastX}" cy="${yBenef}" r="3.5" fill="#2c6e49"/>
+    <text x="${lastX+8}" y="${yBenef-4}" font-size="10" font-weight="700" fill="#2c6e49" font-family="monospace">${fmt(Math.round(serieBenef[n-1]))}</text>
+    <text x="${lastX+8}" y="${yBenef+9}" font-size="9" fill="#5c5b52" font-family="monospace">con risparmio fiscale</text>
+    <circle cx="${lastX}" cy="${yFinal}" r="3.5" fill="#d5001c"/>
+    <text x="${lastX+8}" y="${yFinal+4}" font-size="10" font-weight="700" fill="#d5001c" font-family="monospace">${fmt(Math.round(serieCentr[n-1]))}</text>
+    <circle cx="${lastX}" cy="${ySenza}" r="3" fill="#5c5b52"/>
+    <text x="${lastX+8}" y="${ySenza+3}" font-size="9" fill="#5c5b52" font-family="monospace">${fmt(Math.round(serieSenza[n-1]))} versati</text>
+  `;
+
+  svg.innerHTML = grid + ylab + xlab + annot +
+    `<path d="${bandD}" fill="#d5001c" fill-opacity="0.12" stroke="none"/>` +
+    `<path d="${lineSenza}" fill="none" stroke="#5c5b52" stroke-width="1.75" stroke-dasharray="5,4"/>` +
+    `<path d="${lineCentr}" fill="none" stroke="#d5001c" stroke-width="2.25" stroke-linecap="round"/>` +
+    `<path d="${lineBenef}" fill="none" stroke="#2c6e49" stroke-width="2.5" stroke-linecap="round"/>`;
+}
+
+populateCantoni();
+setProfile('basso');
+</script>
+</body>
+</html>
