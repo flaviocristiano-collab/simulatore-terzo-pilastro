@@ -1,0 +1,166 @@
+<!--
+  features/copilot/plans/costi-intermediazione.html
+  Modulo: Costi di intermediazione
+  Descrizione: Sezione HTML + JS che mostra i parametri medi di mercato in Svizzera
+  e permette di calcolare l'impatto delle commissioni sul capitale investito.
+  Parametri di riferimento (media mercato svizzero):
+    - Commissione di gestione (piani low-cost / fintech): 0.44% annuo
+    - Commissione di gestione (banche tradizionali, media): 1.10% annuo
+    - Commissione di gestione (assicurazioni, polizze vincolate): 2.00% annuo
+    - Costi di custodia: 0% (incluso) per soluzioni moderne, fino a 0.35% per banche
+    - Commissioni di entrata/uscita: 0% per soluzioni moderne, fino a 1-2% per prodotti tradizionali
+-->
+<section id="costi-intermediazione" class="module">
+  <h2>Costi di intermediazione</h2>
+  <p>Questo modulo stima l'impatto delle commissioni di intermediazione tipiche per il Pilastro 3a in Svizzera.
+  I valori preimpostati si basano su parametri medi di mercato (fintech vs banca vs assicurazione).</p>
+
+  <div class="params">
+    <label>Tipo di offerta:
+      <select id="provider-type">
+        <option value="fintech" selected>Fintech / ETF (costi bassi)</option>
+        <option value="banca">Banca tradizionale (costi medi)</option>
+        <option value="assicurazione">Assicurazione / polizza (costi alti)</option>
+      </select>
+    </label>
+  </div>
+
+  <form id="costi-form" onsubmit="return false;">
+    <div>
+      <label>Capitale iniziale (CHF): <input type="number" id="capital" value="10000" min="0" step="100"></label>
+    </div>
+    <div>
+      <label>Contributo annuo (CHF): <input type="number" id="annual-contribution" value="2000" min="0" step="100"></label>
+    </div>
+    <div>
+      <label>Rendimento annuo lordo (%): <input type="number" id="gross-return" value="4" min="-100" step="0.1"></label>
+    </div>
+    <div>
+      <label>Orizzonte (anni): <input type="number" id="years" value="20" min="1" step="1"></label>
+    </div>
+    <div>
+      <label>Commissione gestione manuale (% annuo): <input type="number" id="mgmt-fee" value="0.44" step="0.01"></label>
+    </div>
+    <div>
+      <label>Costi custodia (% annuo): <input type="number" id="custody-fee" value="0" step="0.01"></label>
+    </div>
+    <div>
+      <label>Commissione entrata (%): <input type="number" id="entry-fee" value="0" step="0.01"></label>
+      <label>Commissione uscita (%): <input type="number" id="exit-fee" value="0" step="0.01"></label>
+    </div>
+
+    <div class="actions">
+      <button id="calc-btn">Calcola impatto</button>
+    </div>
+  </form>
+
+  <div id="results">
+    <h3>Risultati</h3>
+    <p id="summary"></p>
+    <table id="results-table">
+      <thead>
+        <tr><th>Anno</th><th>Valore lordo (CHF)</th><th>Commissioni annue (CHF)</th><th>Valore netto (CHF)</th></tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <style>
+    /* Stili minimi per il modulo */
+    #costi-intermediazione { border: 1px solid #ddd; padding: 1rem; margin: 1rem 0; background:#fff; }
+    #costi-intermediazione h2 { margin-top:0 }
+    #costi-form > div { margin:0.5rem 0 }
+    #results-table { width:100%; border-collapse:collapse; margin-top:0.5rem }
+    #results-table th, #results-table td { border:1px solid #eee; padding:0.4rem; text-align:right }
+    #results-table th { text-align:right; background:#f9f9f9 }
+    .actions { margin-top:0.5rem }
+  </style>
+
+  <script>
+    (function(){
+      // Parametri medi di riferimento (Svizzera) - valori usati come preset
+      const presets = {
+        fintech: { mgmt: 0.44, custody: 0.00, entry: 0.0, exit: 0.0 },
+        banca:  { mgmt: 1.10, custody: 0.25, entry: 0.5, exit: 0.5 },
+        assicurazione: { mgmt: 2.00, custody: 0.00, entry: 1.0, exit: 2.0 }
+      };
+
+      const providerSelect = document.getElementById('provider-type');
+      const mgmtFeeInput = document.getElementById('mgmt-fee');
+      const custodyFeeInput = document.getElementById('custody-fee');
+      const entryFeeInput = document.getElementById('entry-fee');
+      const exitFeeInput = document.getElementById('exit-fee');
+
+      function applyPreset() {
+        const p = providerSelect.value;
+        mgmtFeeInput.value = presets[p].mgmt;
+        custodyFeeInput.value = presets[p].custody;
+        entryFeeInput.value = presets[p].entry;
+        exitFeeInput.value = presets[p].exit;
+      }
+
+      providerSelect.addEventListener('change', applyPreset);
+      applyPreset();
+
+      function format(chf){ return Number(chf).toLocaleString('it-CH', {minimumFractionDigits:2, maximumFractionDigits:2}); }
+
+      function calculate() {
+        const capital = Number(document.getElementById('capital').value) || 0;
+        const contrib = Number(document.getElementById('annual-contribution').value) || 0;
+        const grossReturnPct = Number(document.getElementById('gross-return').value) / 100;
+        const years = Number(document.getElementById('years').value) || 1;
+
+        const mgmtFeePct = Number(mgmtFeeInput.value) / 100;
+        const custodyFeePct = Number(custodyFeeInput.value) / 100;
+        const entryFeePct = Number(entryFeeInput.value) / 100;
+        const exitFeePct = Number(exitFeeInput.value) / 100;
+
+        const tbody = document.querySelector('#results-table tbody');
+        tbody.innerHTML = '';
+
+        // Applichiamo la commissione di entrata sul capitale iniziale e sui contributi (approssimazione)
+        const capitalAfterEntry = capital * (1 - entryFeePct);
+
+        let valueGross = capital; // valore senza commissioni
+        let valueNet = capitalAfterEntry; // valore con commissioni
+
+        for (let year = 1; year <= years; year++) {
+          // Aggiungiamo il contributo annuo (entrata applicata al contributo)
+          const contribAfterEntry = contrib * (1 - entryFeePct);
+
+          // Crescita lordo
+          valueGross = (valueGross + contrib) * (1 + grossReturnPct);
+
+          // Per il netto: applichiamo il rendimento, poi togliamo le commissioni annuali (gestione + custodia)
+          valueNet = (valueNet + contribAfterEntry) * (1 + grossReturnPct);
+
+          const annualFees = valueNet * (mgmtFeePct + custodyFeePct);
+          valueNet = valueNet - annualFees;
+
+          // Se è l'ultimo anno applichiamo la commissione di uscita sul valore finale
+          const exitFees = (year === years) ? (valueNet * exitFeePct) : 0;
+
+          const valueNetAfterExit = valueNet - exitFees;
+
+          const row = document.createElement('tr');
+          row.innerHTML = '<td style="text-align:center">' + year + '</td>' +
+                          '<td>' + format(valueGross) + '</td>' +
+                          '<td>' + format(annualFees + exitFees) + '</td>' +
+                          '<td>' + format(valueNetAfterExit) + '</td>';
+          tbody.appendChild(row);
+
+          // assegniamo valueNet per il prossimo anno (se c'era exit fee lo abbiamo già sottratto solo se era l'ultimo anno):
+          valueNet = valueNetAfterExit;
+        }
+
+        const summary = document.getElementById('summary');
+        summary.innerHTML = `Valore finale lordo dopo ${years} anni: CHF ${format(valueGross)} — valore finale netto dopo commissioni: CHF ${format(valueNet)}.`;
+      }
+
+      document.getElementById('calc-btn').addEventListener('click', calculate);
+
+      // Calcolo iniziale
+      calculate();
+    })();
+  </script>
+</section>
